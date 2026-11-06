@@ -113,6 +113,7 @@ function connect(){
   if(p.eventType==="DELETE"){var id=p.old&&p.old.id;postits=postits.filter(function(q){return q.id!==id})}
   else{var n=row2n(p.new),i=postits.findIndex(function(q){return q.id===n.id});if(i>=0)postits[i]=n;else postits.push(n)}
  }).subscribe(function(st){if(st==="SUBSCRIBED")loadAll()});
+ setInterval(function(){if(!document.hidden)loadAll()},5000);
  chan=sb.channel("office",{config:{presence:{key:myId}}});
  chan.on("presence",{event:"sync"},function(){
   var st=chan.presenceState();peers=[];
