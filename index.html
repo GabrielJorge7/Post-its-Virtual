@@ -106,6 +106,7 @@ function loadAll(){
 }
 function connect(){
  if(!CFG.SUPABASE_URL||!CFG.SUPABASE_KEY||!window.supabase){setStatus("modo local (preencha o config.js)");return}
+ if(CFG.SUPABASE_URL.indexOf("https://")!==0||CFG.SUPABASE_URL.indexOf("supabase.co")<0){setStatus("modo local: SUPABASE_URL deve ser https://SEU-PROJETO.supabase.co (Project URL), e não a string postgresql://");return}
  sb=window.supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_KEY);
  loadAll();
  sb.channel("postits-db").on("postgres_changes",{event:"*",schema:"public",table:"postits"},function(p){
@@ -127,8 +128,6 @@ function pushPresence(force){
  lastPres=now;lastSent=s;
  chan.track({x:Math.round(me.x),y:Math.round(me.y),name:me.name,shirt:me.shirt,skin:me.skin,hair:me.hair,nc:noteColor});
 }
-connect();
-
 /* ---- botões ---- */
 $("enter").onclick=function(){
  me.name=($("nm").value||"").trim().slice(0,16)||"Visitante";
@@ -272,6 +271,7 @@ function tick(now){
  }
  draw();requestAnimationFrame(tick);
 }
+try{connect()}catch(e){sb=null;chan=null;setStatus("erro de conexão: "+(e&&e.message||e)+" (modo local)")}
 requestAnimationFrame(tick);
 })();
 </script></body></html>
