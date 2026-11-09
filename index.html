@@ -45,6 +45,7 @@ textarea{height:84px;resize:none}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;max-height:60vh;overflow-y:auto;margin-top:6px}
 .grid div{padding:8px;border-radius:4px;font-size:13px;color:#222;min-height:90px;cursor:pointer;word-break:break-word;box-shadow:0 2px 6px rgba(0,0,0,.25)}
 .grid small{display:block;margin-top:6px;font-size:10px;opacity:.55}
+.duel{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;background:rgba(20,20,24,.92);color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.35);font-size:12px}.duel.h{display:none}.hp{width:90px;height:9px;background:#555;border-radius:6px;overflow:hidden}.hp i{display:block;height:100%;background:#35c979;transition:width .2s}.hp.enemy i{background:#ff6574}
 </style></head>
 <body><div id="app">
 <header><h1>Parede de Post-its</h1><span id="status">conectando…</span></header>
@@ -55,9 +56,12 @@ textarea{height:84px;resize:none}
 <button class="p" id="write" disabled>Escrever post-it</button>
 <button id="all">Ver parede inteira</button>
 <button id="edit">Editar personagem</button>
+<button id="x1" disabled>⚔ X1</button>
 <select id="scene"></select>
 <span class="hint">Mova-se com as setas/WASD ou clicando no chão. Escolha a cor na mesa, depois chegue perto da parede para escrever. Clique em um post-it para lê-lo, ou na parede para ver todos. Clique na caixa de som para ligar a música ou tocar um link do YouTube.</span>
 </div></div>
+<div class="ov h" id="ovDuel"><div class="box"><h2>Desafiar para X1</h2><div class="hint">Escolha alguém que está online agora.</div><div class="gridb" id="duelPeers" style="margin-top:10px"></div><div class="row"><button id="duelClose">Cancelar</button></div></div></div>
+<div class="duel h" id="duelBar"><span id="duelWho"></span><div class="hp"><i id="myHp"></i></div><b id="duelVs">X1</b><div class="hp enemy"><i id="enemyHp"></i></div><button id="duelStop" title="Encerrar X1">×</button></div>
 
 <div class="ov" id="ovAvatar"><div class="box" style="max-width:440px">
 <h2>Crie seu personagem</h2>
@@ -104,9 +108,9 @@ var SHIRT=["#e4572e","#2f6fed","#2aa876","#f2b705","#8e44ad","#222222"];
 var SKIN=["#f6d3b3","#e0ac84","#c68642","#8d5524","#5a3a22"];
 var HAIR=["#2b1b10","#6b4423","#d9a441","#c0392b","#9aa0a6","#1b6ca8"];
 var NOTE=["#ffe94d","#ff8fc7","#6fd3ff","#ffb347","#9be26b","#c9a6ff"];
-var STYLES=[["masc","Masculino"],["fem","Feminino"],["alien","Alien"],["anjo","Anjo"],["robo","Robô"],["astro","Astronauta"],["gato","Gato"],["fant","Fantasma"],["guerr","Guerreiro"],["ninja","Ninja"],["pirata","Pirata"],["sombra","Caçador"],["bloco","Blocos"],["feit","Feiticeiro"],["rei","Rei Demônio"]];
+var STYLES=[["masc","Masculino"],["fem","Feminino"],["alien","Alien"],["anjo","Anjo"],["robo","Robô"],["astro","Astronauta"],["gato","Gato"],["fant","Fantasma"],["guerr","Guerreiro Solar"],["ninja","Ninja das Sombras"],["pirata","Corsário Elástico"],["sombra","Caçador Umbral"],["bloco","Blocos"],["feit","Feiticeiro"],["rei","Rei Demônio"]];
 var ALIEN=["#7be07b","#7bd9e8","#c9a6ff"];
-var SCENES=[["escritorio","Escritório"],["praia","Praia"],["lua","Lua"],["nuvens","Nuvens"],["jardim","Jardim"],["espaco","Espaço"],["bloco","Mundo de blocos"],["navio","Navio pirata"],["dungeon","Dungeon sombria"],["ilha","Arena nas nuvens"]];
+var SCENES=[["escritorio","Escritório"],["praia","Praia"],["lua","Lua"],["nuvens","Nuvens"],["jardim","Jardim"],["espaco","Espaço"],["bloco","Mundo de blocos"],["navio","Navio pirata"],["dungeon","Dungeon sombria"],["ilha","Arena nas nuvens"],["neon","Cidade neon"],["templo","Templo celeste"],["umbra","Floresta umbral"],["arena","Arena de energia"]];
 var T=0,scene="escritorio",SPK={x:810,y:400,w:80,h:110};
 try{scene=localStorage.getItem("pw_scene")||scene}catch(e){}
 var me={name:"",fm:0,ang:0,sk:"masc",shirt:SHIRT[1],skin:SKIN[1],hair:HAIR[0],x:W/2,y:380};
@@ -114,7 +118,7 @@ try{var sv=JSON.parse(localStorage.getItem("pw_me")||"null");if(sv){me.name=sv.n
 function getId(){try{var v=localStorage.getItem("pw_uid");if(!v){v="u"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem("pw_uid",v)}return v}catch(e){return "u"+Math.random().toString(36).slice(2,10)}}
 var myId=getId();
 var canEdit=!!CFG.ADMIN_PASS&&new URLSearchParams(location.search).get("admin")===CFG.ADMIN_PASS;
-var noteColor=NOTE[0],target=null,keys={},postits=[],peers=[],peerMap={},lastCnt=0,FX=[],hitT={},selP=0,castT=0,CD={};
+var noteColor=NOTE[0],target=null,keys={},postits=[],peers=[],peerMap={},lastCnt=0,FX=[],hitT={},selP=0,castT=0,CD={},duel=null,duelSeq=0;
 var sb=null,chan=null,presReady=false,started=false,lastPres=0,lastSent="";
 var rects=[],cur=null,pending=null,DESK={x:90,y:400,w:260,h:80};
 
@@ -172,6 +176,16 @@ function connect(){
  chan.on("broadcast",{event:"em"},function(m){var q=m.payload,o=q&&peerMap[q.id];if(o&&EMO.indexOf(q.e)>=0){o.em=q.e;o.emT=Date.now()+3000}});
  chan.on("broadcast",{event:"yt"},function(m){var q=m.payload||{};var id=/^[\w-]{11}$/.test(q.id||"")?q.id:null,li=/^[\w-]+$/.test(q.list||"")?q.list:null;playYT({id:id,list:li})});
  chan.on("broadcast",{event:"ytstop"},function(){stopYT()});
+ chan.on("broadcast",{event:"duelInvite"},function(m){
+  var q=m.payload||{};if(!started||q.to!==myId||duel)return;
+  var p=peerMap[q.from];if(!p)return;
+  if(confirm((p.name||"Alguém")+" desafiou você para um X1. Aceitar?")){bc("duelAccept",{from:myId,to:q.from,duelId:q.duelId});bc("duelStart",{from:myId,to:q.from,duelId:q.duelId})}else bc("duelDecline",{from:myId,to:q.from,duelId:q.duelId});
+ });
+ chan.on("broadcast",{event:"duelAccept"},function(m){var q=m.payload||{};if(q.to===myId&&duel&&duel.id===q.duelId)startDuel(q.duelId,q.from)});
+ chan.on("broadcast",{event:"duelDecline"},function(m){var q=m.payload||{};if(q.to===myId&&duel&&duel.id===q.duelId){duel=null;setStatus("Desafio recusado");updateDuelUI()}});
+ chan.on("broadcast",{event:"duelStart"},function(m){var q=m.payload||{};if(q.to===myId&&q.duelId)startDuel(q.duelId,q.from)});
+ chan.on("broadcast",{event:"duelHit"},function(m){var q=m.payload||{};if(duel&&q.duelId===duel.id&&q.to===myId&&q.from===duel.opponent)takeDuelDamage(+q.damage||0,q.from)});
+ chan.on("broadcast",{event:"duelEnd"},function(m){var q=m.payload||{};if(duel&&q.duelId===duel.id){duel=null;setStatus("X1 encerrado");updateDuelUI()}});
  chan.subscribe(function(st){if(st==="SUBSCRIBED"){presReady=true;setStatus("multiusuário ativo");pushPresence(true)}else if(st==="CHANNEL_ERROR"||st==="TIMED_OUT"||st==="CLOSED"){presReady=false;setStatus("erro no tempo real ("+st+")")}});
 }
 function pushPresence(force){
@@ -187,9 +201,12 @@ addEventListener("beforeunload",function(){try{if(chan&&presReady)chan.send({typ
 $("enter").onclick=function(){
  me.name=($("nm").value||"").trim().slice(0,16)||"Visitante";
  try{localStorage.setItem("pw_me",JSON.stringify({name:me.name,sk:me.sk,shirt:me.shirt,skin:me.skin,hair:me.hair}))}catch(e){}
- $("ovAvatar").className="ov h";started=true;pushPresence(true);
+ $("ovAvatar").className="ov h";started=true;updateDuelUI();pushPresence(true);
 };
 $("edit").onclick=function(){buildAvatarUI();$("ovAvatar").className="ov"};
+$("x1").onclick=function(){renderDuelPeers();$("ovDuel").className="ov"};
+$("duelClose").onclick=function(){$("ovDuel").className="ov h"};
+$("duelStop").onclick=function(){endDuel(true)};
 $("write").onclick=function(){buildNoteUI();$("au").value=me.name;$("txt").value="";$("ovNote").className="ov";setTimeout(function(){$("txt").focus()},50)};
 $("cancel").onclick=function(){$("ovNote").className="ov h"};
 $("stick").onclick=function(){
@@ -302,6 +319,21 @@ function drawScene(){
  }else if(k==="ilha"){
   grad("#4aa3ff","#cfe9ff");g.fillStyle="rgba(255,255,255,.85)";for(i=0;i<6;i++){var cx3=((i*230+T*(6+i*2))%(W+260))-130,cy3=WALL+30+(i*83)%320;g.beginPath();g.arc(cx3,cy3,28,0,7);g.arc(cx3+30,cy3+6,22,0,7);g.arc(cx3-28,cy3+8,20,0,7);g.fill()}
   g.fillStyle="#8b5a2b";g.beginPath();g.roundRect(30,WALL+24,W-60,H-WALL-30,40);g.fill();g.fillStyle="#6bbf59";g.beginPath();g.roundRect(30,WALL+8,W-60,H-WALL-48,40);g.fill();
+ }else if(k==="neon"){
+  grad("#11152f","#301449");g.globalAlpha=.7;for(i=0;i<12;i++){var nx=(i*101+T*28)%W;g.fillStyle=["#21e6d6","#ff4fd8","#ffe66d"][i%3];g.fillRect(nx,WALL+30+(i%4)*70,3,150)}g.globalAlpha=1;
+  g.fillStyle="#151a31";for(i=0;i<10;i++){var nb=50+i*94;g.fillRect(nb,WALL+80-(i%3)*20,62,220+(i%3)*35);g.fillStyle="rgba(255,255,255,.45)";for(var nw=0;nw<3;nw++)g.fillRect(nb+10+nw*17,WALL+96,7,10);g.fillStyle="#151a31"}
+  g.strokeStyle="rgba(33,230,214,.55)";g.lineWidth=2;g.beginPath();g.moveTo(0,H-48);g.lineTo(W,H-48);g.stroke();
+ }else if(k==="templo"){
+  grad("#f5c56b","#d56b72");g.fillStyle="rgba(255,245,190,.45)";g.beginPath();g.arc(780,280,90,0,7);g.fill();
+  g.fillStyle="#f3e5c4";g.fillRect(0,WALL+80,W,260);g.fillStyle="#bd7657";for(i=0;i<7;i++){g.fillRect(70+i*140,WALL+30,24,280);g.beginPath();g.moveTo(45+i*140,WALL+42);g.lineTo(82+i*140,WALL+4);g.lineTo(119+i*140,WALL+42);g.fill()}
+  g.fillStyle="rgba(117,52,57,.22)";for(i=0;i<9;i++)g.fillRect(i*120,WALL+300,80,5);
+ }else if(k==="umbra"){
+  grad("#182b35","#081116");g.fillStyle="rgba(98,181,160,.18)";for(i=0;i<18;i++){var tx=(i*83)%W,ty=WALL+35+(i*67)%280;g.beginPath();g.moveTo(tx,ty+80);g.lineTo(tx+18,ty-35);g.lineTo(tx+38,ty+80);g.fill()}
+  for(i=0;i<8;i++){var tr=70+i*125;g.fillStyle="#132c2c";g.fillRect(tr,WALL+35,18,310);g.fillStyle="#1e5148";g.beginPath();g.arc(tr+9,WALL+30,42,0,7);g.fill();g.beginPath();g.arc(tr-18,WALL+78,35,0,7);g.fill()}
+  g.fillStyle="#71e6c1";for(i=0;i<16;i++){g.beginPath();g.arc((i*73+T*15)%W,WALL+45+(i*41)%280,2,0,7);g.fill()}
+ }else if(k==="arena"){
+  grad("#171729","#07070e");g.strokeStyle="rgba(100,190,255,.45)";g.lineWidth=3;for(i=0;i<5;i++){g.beginPath();g.ellipse(W/2,H/2+40,110+i*65,35+i*28,T*.15+i*.3,0,7);g.stroke()}
+  g.fillStyle="rgba(70,150,255,.22)";g.beginPath();g.arc(W/2,H-50,150+Math.sin(T*2)*8,Math.PI,0);g.fill();g.fillStyle="#8cecff";for(i=0;i<20;i++){g.fillRect((i*61+T*25)%W,WALL+40+(i*47)%270,3,3)}
  }else{
   g.fillStyle="#caa57a";g.fillRect(0,0,W,H);g.fillStyle="rgba(0,0,0,.07)";for(i=0;i<W;i+=60)g.fillRect(i,WALL,2,H);
   g.fillStyle="rgba(47,111,237,.18)";g.beginPath();g.roundRect(W/2-160,WALL+40,320,150,18);g.fill();
@@ -366,6 +398,34 @@ function playYT(p){
 }
 function stopYT(){$("tvF").src="about:blank";$("tv").className="h";ytOn=false}
 function bc(ev,pl){if(chan&&presReady)chan.send({type:"broadcast",event:ev,payload:pl||{}})}
+function renderDuelPeers(){
+ var el=$("duelPeers");el.innerHTML="";var ids=Object.keys(peerMap).filter(function(id){return Date.now()-peerMap[id].seen<6000});
+ if(!ids.length){el.className="hint";el.textContent="Ninguém online para desafiar.";return}
+ el.className="gridb";ids.forEach(function(id){var b=document.createElement("button");b.textContent="⚔ "+(peerMap[id].name||"Visitante");b.onclick=function(){challenge(id);$("ovDuel").className="ov h"};el.appendChild(b)})
+}
+function challenge(id){
+ if(!started||duel||!peerMap[id])return;
+ duel={id:myId+"-"+Date.now().toString(36)+"-"+(duelSeq++),opponent:id,hp:100,enemyHp:100,pending:true};
+ bc("duelInvite",{from:myId,to:id,duelId:duel.id});setStatus("Desafio enviado…");updateDuelUI();
+}
+function startDuel(id,opponent){
+ if(duel&&duel.id!==id)return;
+ duel=duel||{};duel.id=id;duel.opponent=opponent;duel.hp=100;duel.enemyHp=100;duel.pending=false;
+ setStatus("X1 contra "+((peerMap[opponent]&&peerMap[opponent].name)||"oponente"));updateDuelUI();
+}
+function updateDuelUI(){
+ var on=!!duel,bar=$("duelBar");bar.className=on?"duel":"duel h";$("x1").disabled=!started||on;
+ if(!on)return;
+ $("duelWho").textContent=duel.pending?"Aguardando…":(me.name||"Você");$("duelVs").textContent="VS "+((peerMap[duel.opponent]&&peerMap[duel.opponent].name)||"oponente");$("myHp").style.width=Math.max(0,duel.hp)+"%";$("enemyHp").style.width=Math.max(0,duel.enemyHp)+"%";
+}
+function takeDuelDamage(amount,from){
+ if(!duel||duel.pending||from!==duel.opponent)return;
+ duel.hp=Math.max(0,duel.hp-amount);updateDuelUI();
+ if(duel.hp<=0){bc("duelEnd",{duelId:duel.id,from:myId,to:duel.opponent});setStatus("Você perdeu o X1");duel=null;updateDuelUI()}
+}
+function endDuel(notify){
+ if(!duel)return;var id=duel.id,opponent=duel.opponent;duel=null;updateDuelUI();setStatus("X1 encerrado");if(notify)bc("duelEnd",{duelId:id,from:myId,to:opponent});
+}
 function openSpk(){$("ytMsg").textContent="";$("ovSpk").className="ov"}
 $("spkClose").onclick=function(){$("ovSpk").className="ov h"};
 $("m0").onclick=function(){setMusic(0);stopYT();if($("ytAll").checked)bc("ytstop")};
@@ -386,7 +446,7 @@ var POW=[["onda","⚡ Onda de energia",1.8,"p"],["esfera","🌀 Esfera giratóri
 ["chuva","🌧 Chuva",7,"e"],["meteoros","☄ Chuva de meteoros",6,"e"],["terremoto","🌋 Terremoto",4,"e"],["luzes","💡 Apagar as luzes",7,"e"],["fogos","🎆 Fogos de artifício",6,"e"],["explosao","💣 Explosão",1.3,"e"],["vento","🌬 Vento forte",7,"e"]];
 var EMO=["👋","❤️","😂","🔥","👏"];
 function pidx(p){for(var i=0;i<POW.length;i++)if(POW[i][0]===p)return i;return -1}
-function pushFX(o){o.d=POW[pidx(o.p)][2];FX.push(o)}
+function pushFX(o){o.d=POW[pidx(o.p)][2];o.hitIds={};FX.push(o)}
 function cast(i){
  var n=Date.now(),ct=POW[i][3],cd=ct==="d"?20000:ct==="e"?4000:800,w=n-(CD[ct]||0);
  if(!started)return;
@@ -396,7 +456,7 @@ function cast(i){
  bc("fx",{p:o.p,x:Math.round(o.x),y:Math.round(o.y),a:o.a,by:myId});
 }
 function emote(e){if(!started)return;me.em=e;me.emT=Date.now()+3000;bc("em",{id:myId,e:e})}
-var FORMS={guerr:["Base","Nível 1 · Dourado","Nível 2 · Elétrico","Nível 3 · Lendário","Nível 4 · Divino"],ninja:["Base","Modo Chakra","Modo Sábio","Modo Supremo"],pirata:["Base","Marcha 2","Marcha 3","Marcha 4","Marcha 5"]};
+var FORMS={guerr:["Base Solar","Ascensão Dourada","Pulso Elétrico","Lenda Celeste","Instinto Divino"],ninja:["Ninja Errante","Fluxo Azul","Eclipse Ígneo","Olho do Trovão"],pirata:["Corsário Livre","Impulso Carmesim","Corpo Elástico","Titã do Mar","Rei da Maré"],sombra:["Rastreador","Despertar Sombrio","Legião Umbral"]};
 function openInt(){renderForm();$("ovInt").className="ov"}
 function closeInt(){$("ovInt").className="ov h"}
 function xform(d){
@@ -426,7 +486,8 @@ function renderForm(){
 function glow(x,y,r,c){var q=g.createRadialGradient(x,y,0,x,y,r);q.addColorStop(0,"#fff");q.addColorStop(.4,c);q.addColorStop(1,"rgba(255,255,255,0)");g.fillStyle=q;g.beginPath();g.arc(x,y,r,0,7);g.fill()}
 function seg(a,b,c,d){g.beginPath();g.moveTo(a,b);g.lineTo(c,d);g.stroke()}
 function targets(){var a=[{id:myId,x:me.x,y:me.y}];for(var k in peerMap)a.push({id:k,x:peerMap[k].x,y:peerMap[k].y});return a}
-function hitPt(f,x,y,r){targets().forEach(function(t){if(t.id!==f.by&&Math.hypot(t.x-x,t.y-20-y)<r)hitT[t.id]=Date.now()+450})}
+var DUEL_DAMAGE={onda:20,esfera:18,fogo:24,raio:28,sombras:12};
+function hitPt(f,x,y,r){targets().forEach(function(t){if(t.id===f.by||Math.hypot(t.x-x,t.y-20-y)>=r)return;hitT[t.id]=Date.now()+450;if(!duel||duel.pending||f.by!==myId||t.id!==duel.opponent||f.hitIds[t.id])return;f.hitIds[t.id]=true;var damage=DUEL_DAMAGE[f.p]||0;if(!damage)return;duel.enemyHp=Math.max(0,duel.enemyHp-damage);bc("duelHit",{duelId:duel.id,from:myId,to:t.id,damage:damage});updateDuelUI()})}
 function hitSeg(f,ax,ay,bx,by){for(var k=0;k<=8;k++)hitPt(f,ax+(bx-ax)*k/8,ay+(by-ay)*k/8,34)}
 function drawFX(){
  var n=Date.now(),j,k;
@@ -564,10 +625,13 @@ function drawChar(c,x,y,a,fl){
   c.fillStyle=f===4?"#9aa3ad":"#fff";c.beginPath();c.arc(x,hy-14,2.5,0,7);c.fill();
   c.restore();return}
  if(s==="sombra"){
-  var as=c.createRadialGradient(x,y-10,2,x,y-10,36);as.addColorStop(0,"rgba(120,50,220,.55)");as.addColorStop(1,"rgba(120,50,220,0)");c.fillStyle=as;c.beginPath();c.arc(x,y-10,38,0,7);c.fill();
+  var f=a.fm|0,glowColor=f===2?"#a8f0ff":f===1?"#a85cff":"#783cff",as=c.createRadialGradient(x,y-10,2,x,y-10,42+f*10);as.addColorStop(0,"rgba(150,90,255,.7)");as.addColorStop(1,"rgba(80,30,160,0)");c.fillStyle=as;c.beginPath();c.arc(x,y-10,44+f*10,0,7);c.fill();
   c.fillStyle="#17112a";c.beginPath();c.moveTo(x-9,y-26);c.lineTo(x+9,y-26);c.lineTo(x+17,y);c.lineTo(x-17,y);c.fill();c.fillStyle=sh;c.fillRect(x-1,y-26,2,24);
+  if(f>=1){c.strokeStyle=glowColor;c.lineWidth=2;for(var si=0;si<3+f;si++){var sa=si*2.1+T*1.5;c.beginPath();c.moveTo(x+Math.cos(sa)*18,y-18+Math.sin(sa)*8);c.lineTo(x+Math.cos(sa)*34,y-18+Math.sin(sa)*16);c.stroke()}}
   c.fillStyle="#17112a";c.beginPath();c.arc(x,hy,12,0,7);c.fill();c.fillStyle="#08050f";c.beginPath();c.arc(x,hy+1,8,0,7);c.fill();
-  c.fillStyle=sh;c.fillRect(x-6,hy,4,2);c.fillRect(x+2,hy,4,2);return}
+  c.fillStyle=glowColor;c.fillRect(x-6,hy,4,2);c.fillRect(x+2,hy,4,2);
+  if(f===2){c.strokeStyle="#d9faff";c.lineWidth=2;c.beginPath();c.moveTo(x-16,y-20);c.lineTo(x-27,y-4);c.lineTo(x-18,y+4);c.moveTo(x+16,y-20);c.lineTo(x+27,y-4);c.lineTo(x+18,y+4);c.stroke()}
+  return}
  if(s==="feit"){
   var j;c.fillStyle="#1b2340";c.beginPath();c.moveTo(x-9,y-26);c.lineTo(x+9,y-26);c.lineTo(x+16,y);c.lineTo(x-16,y);c.fill();c.fillStyle=sh;c.fillRect(x-2,y-26,4,26);c.fillRect(x-14,y-4,28,3);
   c.fillStyle=sk;c.beginPath();c.arc(x,hy,11,0,7);c.fill();c.fillStyle=h;c.beginPath();c.arc(x,hy-3,11.5,Math.PI,0);c.fill();c.fillRect(x-11,hy-3,3,8);c.fillRect(x+8,hy-3,3,8);
@@ -663,7 +727,7 @@ var last=performance.now();
 function tick(now){
  var dt=Math.min(.05,(now-last)/1000);last=now;T=now/1000;
  var tn=Date.now();
- for(var pk in peerMap){var po=peerMap[pk];if(tn-po.seen>6000){delete peerMap[pk];continue}var fk=Math.min(1,dt*10);po.x+=(po.tx-po.x)*fk;po.y+=(po.ty-po.y)*fk}
+ for(var pk in peerMap){var po=peerMap[pk];if(tn-po.seen>6000){if(duel&&duel.opponent===pk)endDuel(true);delete peerMap[pk];continue}var fk=Math.min(1,dt*10);po.x+=(po.tx-po.x)*fk;po.y+=(po.ty-po.y)*fk}
  if(presReady&&tn-lastCnt>1000){lastCnt=tn;var se=$("status");if(/^multiusuário/.test(se.textContent))se.textContent="multiusuário ativo · "+(Object.keys(peerMap).length+1)+" online"}
  if(started){
   var sf=1,tt=Date.now();
@@ -678,6 +742,7 @@ function tick(now){
   if(pending&&!target&&nearDesk()){noteColor=pending;pending=null}
   var near=me.y<NEAR;$("write").disabled=!near;
   $("write").title=near?"":"Chegue mais perto da parede";
+  if(!duel)$("x1").disabled=false;
  }
  draw();requestAnimationFrame(tick);
 }
